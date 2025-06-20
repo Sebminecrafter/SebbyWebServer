@@ -1,7 +1,7 @@
 # SebbyWebServer
 A simple python webserver
-#Config
+# Config
 The config is in the main.py file
-#Planned
+# Planned
  - Config file (currently being made)
  - Loadable custom functions
