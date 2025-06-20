@@ -4,7 +4,7 @@
 # Not for production use (yet)
 from http.server import *
 import os, ssl, mimetypes
-ver = 1.0
+ver = 1.1
 strver = str(ver)
 codePaths = []
 codePathFuncs = []
@@ -45,22 +45,24 @@ def evalRequest(path):
             type = 'text/html'
     return output,status,type
 
-class SebbyServer(BaseHTTPRequestHandler):
+class SebbyServer(BaseHTTPRequestHandler): #just runs another function -_-
     def do_GET(self):
         response = evalRequest(self.path)
         self.send_response(response[1])
         self.send_header("Content-type", response[2]); self.end_headers()
         self.wfile.write(response[0])
 
-#    :)                             --------Config-----------------------------------------------------
-port = 443                          #Which port to serve on (default for http: 80, https: 443)
-host = ''                           #Hostname/ip change if you aren't just devtesting
-keyfilelocation = 'cert/private.key'#Only required for ssl, location of your key file (private.key)
-certfilelocation = 'cert/cert.pem'  #Only required for ssl, location of your certificate (cert.pem)
-sebby_using_ssl = True              #Whether you ar using SSL (HTTPS) or not (HTTP)
-handler_class=SebbyServer           #Only change if you know are testing/editing/etc. ()
-append = f"\n<br><center><p>Running SebbyWebServer Version {strver}</p></center>" #Appended at end of page
-notfoundpage = f"<h1>404 File/Function not found: {path}</h1>"   #File not found (404) page
+#Load config file
+try:
+    with open('config.txt', 'r') as config:
+        configlines = config.readlines()
+        for i in configlines:
+            eval(i) #its lit just python T-T, be careful bro
+        config.close() #close file cuz yes
+except Exception:
+    print("Failed to load config file, defaulting to default settings (please fix this though)")
+    #Apply defaults because bro forgor to set their settings
+    port = 80; host = ''; keyfilelocation = ''; certfilelocation = ''; sebby_using_ssl = False; handler_class=SebbyServer; append = f"\n<br><center><p>Running SebbyWebServer Version {strver}</p></center>"; notfoundpage = f"<h1>404 File/Function not found: {path}</h1>"
 
 if __name__ == '__main__':
     server_address = (host, port)
@@ -70,16 +72,16 @@ if __name__ == '__main__':
         sslctx.check_hostname = False
         sslctx.load_cert_chain(certfile=certfilelocation, keyfile=keyfilelocation)
         httpd.socket = sslctx.wrap_socket(httpd.socket, server_side=True)
-        print("HTTPS is enabled! :)")
+        print("HTTPS is enabled! :)") #les goo https!!
     else:
-        print("Running in HTTP mode. :/")
+        print("Running in HTTP mode. :/") #meh its ok but you have to manually type it in nowadays
     if server_address[0] == '': printserver = '127.0.0.1 or localhost'
     else: printserver = server_address[0]
-    print(f"SebbyWebServer\nServing on {printserver}:{server_address[1]}\nPress Ctrl+C to stop")
+    print(f"SebbyWebServer\nServing on {printserver}:{server_address[1]}\nPress Ctrl+C to stop") #gotta tell chat how it works bro
     try:
         httpd.serve_forever()
-    except KeyboardInterrupt:
+    except KeyboardInterrupt: #stop server when Ctrl+C pressed
         pass
     print("Stopping server...")
-    httpd.server_close()
-    print("Stopped.")
+    httpd.server_close() #close it properly man
+    print("Stopped.") #It's now safe to turn off your computer (ain't nobody gonna get this reference)
