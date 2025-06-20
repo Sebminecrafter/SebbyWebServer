@@ -52,6 +52,8 @@ class SebbyServer(BaseHTTPRequestHandler): #just runs another function -_-
         self.send_header("Content-type", response[2]); self.end_headers()
         self.wfile.write(response[0])
 
+
+port = 80; host = ''; keyfilelocation = ''; certfilelocation = ''; sebby_using_ssl = False; handler_class=SebbyServer; append = f"\n<br><center><p>Running SebbyWebServer Version {strver}</p></center>"; notfoundpage = f"<h1>404 File/Function not found: {path}</h1>"
 #Load config file
 try:
     with open('config.txt', 'r') as config:
@@ -60,9 +62,20 @@ try:
             eval(i) #its lit just python T-T, be careful bro
         config.close() #close file cuz yes
 except Exception:
-    print("Failed to load config file, defaulting to default settings (please fix this though)")
-    #Apply defaults because bro forgor to set their settings
-    port = 80; host = ''; keyfilelocation = ''; certfilelocation = ''; sebby_using_ssl = False; handler_class=SebbyServer; append = f"\n<br><center><p>Running SebbyWebServer Version {strver}</p></center>"; notfoundpage = f"<h1>404 File/Function not found: {path}</h1>"
+    print("Failed to load config file, making you a new one")
+    #bro forgor he deleted the config, so make him a new one
+    with open('config.txt', 'w') as config:
+        config.write("""#NOTICE: THIS WILL BE INTERPRETED AS LITERAL PYTHON CODE (because why not) SO BE CAREFUL AND READ ANYTHING BEFORE YOU PUT IT IN HERE
+# :)                                --------------------------------Config--------------------------------
+port = 80                                                                        #Which port to serve on (default for http: 80, https: 443)
+host = ''                                                                        #Hostname/ip change if you aren't just devtesting
+keyfilelocation = ''                                                             #Only required for ssl, location of your key file (private.key)
+certfilelocation = ''                                                            #Only required for ssl, location of your certificate (cert.pem)
+sebby_using_ssl = False                                                          #Whether you are using SSL (HTTPS) or not (HTTP)
+handler_class = SebbyServer                                                      #Only change if you know are testing/editing/etc. ()
+append = f"\n<br><center><p>Running SebbyWebServer Version {strver}</p></center>"#Appended at end of page
+notfoundpage = f"<h1>404 File/Function not found: {path}</h1>"                   #File not found (404) page""")
+        config.close() #close file cuz yes
 
 if __name__ == '__main__':
     server_address = (host, port)
