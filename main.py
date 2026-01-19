@@ -3,12 +3,83 @@
 # Warning: Not fully tested for security
 # Not for production use (yet)
 from http.server import *
+from pathlib import Path
 import os, ssl, mimetypes
-ver = 1.1
+try:
+    import yaml
+except ImportError:
+    print("SebbyWebServer requires PyYAML")
+    print("It can be installed with 'pip install pyyaml'")
+    if input("Type Y to install it now").lower()=='y':
+        os.system("pip install pyyaml")
+    else:
+        from sys import exit
+        exit(1)
+    import yaml
+ver = 1.2
 strver = str(ver)
 codePaths = []
 codePathFuncs = []
 mimetypes.init()
+
+class Config:
+    def __init__(self, path: str = "config.yml"):
+        self.path = Path(path)
+
+        # Defaults
+        self.port = 80
+        self.host = ""
+
+        self.ssl_enabled = False
+        self.ssl_keyfile = None
+        self.ssl_certfile = None
+
+        self.append = ""
+        self.notfoundpage = ""
+
+        # Load if file exists
+        if self.path.exists():
+            self._load(self)
+
+    def _load(self):
+        with self.path.open("r", encoding="utf-8") as f:
+            data = yaml.safe_load(f) or {}
+
+        self.port = data.get("port", self.port)
+        self.host = data.get("host", self.host)
+
+        ssl = data.get("ssl", {})
+        self.ssl_enabled = ssl.get("enabled", self.ssl_enabled)
+        self.ssl_keyfile = ssl.get("keyfile", self.ssl_keyfile)
+        self.ssl_certfile = ssl.get("certfile", self.ssl_certfile)
+
+        self.append = data.get("append", self.append)
+        self.append = self.append.replace("VER", str(ver))
+        self.notfoundpage = data.get("notfoundpage", self.notfoundpage)
+    def save(self):
+        data = {
+            "port": self.port,
+            "host": self.host,
+            "ssl": {
+                "enabled": self.ssl_enabled,
+                "keyfile": self.ssl_keyfile,
+                "certfile": self.ssl_certfile,
+            },
+            "append": self.append,
+            "notfoundpage": self.notfoundpage,
+        }
+
+        with self.path.open("w", encoding="utf-8") as f:
+            yaml.safe_dump(data, f, sort_keys=False)
+    def __repr__(self):
+        return (
+            f"Config(port={self.port}, host={self.host!r}, "
+            f"ssl_enabled={self.ssl_enabled}, "
+            f"ssl_keyfile={self.ssl_keyfile!r}, "
+            f"ssl_certfile={self.ssl_certfile!r}, "
+            f"append={self.append!r}, "
+            f"notfoundpage={self.notfoundpage!r})"
+        )
 
 def evalRequest(path):
     output = None
@@ -22,7 +93,7 @@ def evalRequest(path):
             if str(mimetypes.guess_file_type(path2)[0]) == 'text/html':
                 with open(path2, 'r') as f:
                     output = f.read()
-                    output = f"{output}{append}".encode('UTF-8')
+                    output = f"{output}{Config.append}".encode('UTF-8')
                 type = 'text/html'
             else:
                 with open(path2, 'rb') as f:
@@ -32,16 +103,16 @@ def evalRequest(path):
             with open(f"{path2}index.html") as f:
                 output = f.read()
                 status = 200
-                output = f"{output}{append}".encode('UTF-8')
+                output = f"{output}{Config.append}".encode('UTF-8')
                 type = 'text/html'
         elif os.path.isfile(f"{path2}/index.html"):
             with open(f"{path2}/index.html") as f:
                 output = f.read()
                 status = 200
-                output = f"{output}{append}".encode('UTF-8')
+                output = f"{output}{Config.append}".encode('UTF-8')
                 type = 'text/html'
         else:
-            cr404page = notfoundpage.replace("PATH",path)
+            cr404page = Config.notfoundpage.replace("PATH",path)
             output = cr404page.encode('UTF-8')
             status = 404
             type = 'text/html'
@@ -54,37 +125,14 @@ class SebbyServer(BaseHTTPRequestHandler): #just runs another function -_-
         self.send_header("Content-type", response[2]); self.end_headers()
         self.wfile.write(response[0])
 
-
-port = 80; host = ''; keyfilelocation = ''; certfilelocation = ''; sebby_using_ssl = False; handler_class=SebbyServer; append = f"\n<br><center><p>Running SebbyWebServer Version {strver}</p></center>"; notfoundpage = "<h1>404 File/Function not found: PATH</h1>"
-#Load config file
-try:
-    with open('config.txt', 'r') as config:
-        for i in config.readlines():
-            exec(i)
-        config.close() #close file cuz yes
-except Exception:
-    print("Failed to load config file, making you a new one")
-    #make a new config if one does not exist
-    with open('config.txt', 'w') as config:
-        config.write("""#NOTICE: THIS WILL BE INTERPRETED AS CODE, BE CAREFUL AND READ ANYTHING BEFORE YOU PUT IT IN HERE
-#                                                                                 --------------------------------Config--------------------------------
-port = 443                                                                        #Which port to serve on (default for http is 80, https is 443)
-host = ''                                                                         #Hostname/ip change if you aren't just devtesting
-keyfilelocation = 'cert/private.key'                                              #Only required for ssl, location of your key file (private.key)
-certfilelocation = 'cert/cert.pem'                                                #Only required for ssl, location of your certificate (cert.pem)
-sebby_using_ssl = True                                                            #Whether you are using SSL (HTTPS) or not (HTTP)
-handler_class=SebbyServer                                                         #Only change if you are testing/editing/etc.
-append = f"\\n<br><center><p>Running SebbyWebServer Version {strver}</p></center>"#Appended at end of page
-notfoundpage = "<h1>404 File/Function not found: PATH</h1>"                       #File not found (404) page you can use PATH for the path""")
-        config.close() #close file
-
 if __name__ == '__main__':
-    server_address = (host, port)
-    httpd = ThreadingHTTPServer(server_address, handler_class)
-    if sebby_using_ssl:
+    Config.__init__(Config, "config.yml")
+    server_address = (Config.host, Config.port)
+    httpd = ThreadingHTTPServer(server_address, SebbyServer)
+    if Config.ssl_enabled:
         sslctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         sslctx.check_hostname = False
-        sslctx.load_cert_chain(certfile=certfilelocation, keyfile=keyfilelocation)
+        sslctx.load_cert_chain(certfile=Config.ssl_certfile, keyfile=Config.ssl_keyfile)
         httpd.socket = sslctx.wrap_socket(httpd.socket, server_side=True)
         print("HTTPS is enabled")
     else:

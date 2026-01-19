@@ -1,0 +1,16 @@
+# SebbyServer
+
+# Which port to serve on (default for http is 80, https is 443)
+port: 80
+#Hostname/ip change if you aren't just devtesting
+host: ""
+
+# SSL Settings
+ssl:
+  enabled: false
+  keyfile: "cert/private.key"
+  certfile: "cert/cert.pem"
+
+# Custom code and pages
+append: "\n<br><center><p>Running SebbyWebServer Version VER</p></center>" #Appended at end of page, you may use VER for version
+notfoundpage: "<h1>404 File/Function not found: PATH</h1>" #File not found (404) page, you may use PATH for the path

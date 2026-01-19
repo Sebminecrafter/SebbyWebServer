@@ -1,0 +1,7 @@
+*.crt
+*.cer
+*.p12
+*.pfx
+*.der
+*.pem
+*.key
