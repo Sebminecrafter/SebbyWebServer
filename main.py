@@ -67,7 +67,7 @@ class Config:
             f"notfoundpage={self.notfoundpage!r})"
         )
 
-def loadFunction(path) -> tuple[bytes, int, str]:
+def loadFunction(path, req) -> tuple[bytes, int, str]:
     module_path = Path(path)
     try:
         spec = importlib.util.spec_from_file_location(module_path.stem, module_path)
@@ -75,7 +75,7 @@ def loadFunction(path) -> tuple[bytes, int, str]:
             raise ImportError("Cannot load module")
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
-        fresult = module.main()
+        fresult = module.main(req)
         if isinstance(fresult, tuple) and len(fresult) == 3:
             output, status, outputtype = fresult
         else:
@@ -94,7 +94,8 @@ def loadFunction(path) -> tuple[bytes, int, str]:
 
     return output, status, outputtype
 
-def evalRequest(path, config) -> tuple[bytes, int, str]:
+def evalRequest(req, config) -> tuple[bytes, int, str]:
+    path = req.path
     path = path.split("?", 1)[0]
     path = path.lstrip("/")
     path = os.path.normpath(path)
@@ -108,7 +109,7 @@ def evalRequest(path, config) -> tuple[bytes, int, str]:
 
     # Check for function file
     if os.path.isfile(fpath):
-        output, status, outputtype = loadFunction(str(fpath))
+        output, status, outputtype = loadFunction(str(fpath), req)
 
     # Check for normal file path
     elif ppath.is_file():
@@ -142,7 +143,7 @@ def evalRequest(path, config) -> tuple[bytes, int, str]:
 
 class SebbyServer(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
-        response = evalRequest(self.path, config)
+        response = evalRequest(self, config)
         self.send_response(response[1])
         self.send_header("Content-type", response[2])
         self.end_headers()
