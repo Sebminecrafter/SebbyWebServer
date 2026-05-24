@@ -1,12 +1,10 @@
 # SebbyWebServer by Sebminecrafter
 
-import http.server, os, ssl, mimetypes, yaml
+import http.server, os, ssl, mimetypes, yaml, importlib.util
 from pathlib import Path
 
-ver = 1.3
+ver = 2.0
 strver = str(ver)
-codePaths = []
-codePathFuncs = []
 mimetypes.init()
 
 class Config:
@@ -69,43 +67,78 @@ class Config:
             f"notfoundpage={self.notfoundpage!r})"
         )
 
-def evalRequest(path, config):
-    output = None
-    if path in codePaths:
-        output = eval(f"{codePathFuncs[codePaths.index(path)]}()")
-        status = 200
-        type = 'text/html'
-    else:
-        path2 = f"{os.getcwd()}{path}"
-        if os.path.isfile(path2):
-            status = 200
-            if str(mimetypes.guess_file_type(path2)[0]) == 'text/html':
-                with open(path2, 'r') as f:
-                    output = f.read()
-                    output = f"{output}{config.append}".encode('UTF-8')
-                type = 'text/html'
-            else:
-                with open(path2, 'rb') as f:
-                    output = f.read()
-                type = str(mimetypes.guess_file_type(path2)[0])
-        elif os.path.isfile(f"{path2}index.html"):
-            with open(f"{path2}index.html") as f:
-                output = f.read()
-                status = 200
-                output = f"{output}{config.append}".encode('UTF-8')
-                type = 'text/html'
-        elif os.path.isfile(f"{path2}/index.html"):
-            with open(f"{path2}/index.html") as f:
-                output = f.read()
-                status = 200
-                output = f"{output}{config.append}".encode('UTF-8')
-                type = 'text/html'
+def loadFunction(path) -> tuple[bytes, int, str]:
+    module_path = Path(path)
+    try:
+        spec = importlib.util.spec_from_file_location(module_path.stem, module_path)
+        if spec is None or spec.loader is None:
+            raise ImportError("Cannot load module")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        fresult = module.main()
+        if isinstance(fresult, tuple) and len(fresult) == 3:
+            output, status, outputtype = fresult
         else:
-            status = 404
-            output = f"{config.notfoundpage.replace("PATH",path)}{config.append}".encode('UTF-8')
-            type = 'text/html'
+            output = str(fresult)
+            status = 200
+            outputtype = 'text/html'
+    except Exception:
+        output = "<h1>500 internal server error</h1><h2>An error occured processing that request</h2>"
+        status = 500
+        outputtype = 'text/html'
+
+    if isinstance(output, str):
+        output = output.encode('utf-8')
+    elif not isinstance(output, (bytes, bytearray)):
+        output = str(output).encode('utf-8')
+
+    return output, status, outputtype
+
+def evalRequest(path, config) -> tuple[bytes, int, str]:
+    path = path.split("?", 1)[0]
+    path = path.lstrip("/")
+    path = os.path.normpath(path)
+    if path.startswith(".."):
+        path = ""
+
+    public = Path(os.getcwd()) / "public"
+    publicf = Path(os.getcwd()) / "publicf"
+    ppath = public / path
+    fpath = f"{publicf / path}.py"
+
+    # Check for function file
+    if os.path.isfile(fpath):
+        output, status, outputtype = loadFunction(str(fpath))
+
+    # Check for normal file path
+    elif ppath.is_file():
+        status = 200
+        if mimetypes.guess_type(str(ppath))[0] == 'text/html':
+            with open(ppath, 'r', encoding='utf-8') as f:
+                output = f.read()
+                output = f"{output}{config.append}".encode('UTF-8')
+            outputtype = 'text/html'
+        else:
+            with open(ppath, 'rb') as f:
+                output = f.read()
+            outputtype = mimetypes.guess_type(str(ppath))[0] or 'application/octet-stream'
+
+    elif (ppath / "index.html").is_file():
+        with open(ppath / "index.html", 'r', encoding='utf-8') as f:
+            output = f.read()
+            output = f"{output}{config.append}".encode('UTF-8')
+        status = 200
+        outputtype = 'text/html'
+
+    else:
+        output = f"{config.notfoundpage.replace('PATH', path)}{config.append}".encode('UTF-8')
+        status = 404
+        outputtype = 'text/html'
     
-    return output, status, type
+    if type(output) == str:
+        output = output.encode('UTF-8')
+    
+    return output, status, outputtype
 
 class SebbyServer(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
@@ -114,6 +147,8 @@ class SebbyServer(http.server.BaseHTTPRequestHandler):
         self.send_header("Content-type", response[2])
         self.end_headers()
         self.wfile.write(response[0])
+    def do_POST(self):
+        self.do_GET()
 
 if __name__ == '__main__':
     config = Config("config.yml")
