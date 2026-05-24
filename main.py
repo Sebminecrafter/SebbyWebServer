@@ -101,9 +101,8 @@ def evalRequest(path, config):
                 output = f"{output}{config.append}".encode('UTF-8')
                 type = 'text/html'
         else:
-            cr404page = config.notfoundpage.replace("PATH",path)
-            output = cr404page.encode('UTF-8')
             status = 404
+            output = f"{config.notfoundpage.replace("PATH",path)}{config.append}".encode('UTF-8')
             type = 'text/html'
     
     return output, status, type
