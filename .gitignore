@@ -1,3 +1,4 @@
+# certificates
 *.crt
 *.cer
 *.p12
@@ -6,4 +7,7 @@
 *.pem
 *.key
 cert/*
+
+# testing
 test/*
+**/__pycache__
