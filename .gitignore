@@ -6,3 +6,4 @@
 *.pem
 *.key
 cert/*
+test/*

@@ -1,22 +1,9 @@
-# Sebby Web Server
-# Code by Sebminecrafter
-# Warning: Not fully tested for security
-# Not for production use (yet)
-from http.server import *
+# SebbyWebServer by Sebminecrafter
+
+import http.server, os, ssl, mimetypes, yaml
 from pathlib import Path
-import os, ssl, mimetypes
-try:
-    import yaml
-except ImportError:
-    print("SebbyWebServer requires PyYAML")
-    print("It can be installed with 'pip install pyyaml'")
-    if input("Type Y to install it now").lower()=='y':
-        os.system("pip install pyyaml")
-    else:
-        from sys import exit
-        exit(1)
-    import yaml
-ver = 1.2
+
+ver = 1.3
 strver = str(ver)
 codePaths = []
 codePathFuncs = []
@@ -31,15 +18,15 @@ class Config:
         self.host = ""
 
         self.ssl_enabled = False
-        self.ssl_keyfile = None
-        self.ssl_certfile = None
+        self.ssl_keyfile = ""
+        self.ssl_certfile = ""
 
         self.append = ""
         self.notfoundpage = ""
 
         # Load if file exists
         if self.path.exists():
-            self._load(self)
+            self._load()
 
     def _load(self):
         with self.path.open("r", encoding="utf-8") as f:
@@ -56,6 +43,7 @@ class Config:
         self.append = data.get("append", self.append)
         self.append = self.append.replace("VER", str(ver))
         self.notfoundpage = data.get("notfoundpage", self.notfoundpage)
+
     def save(self):
         data = {
             "port": self.port,
@@ -81,11 +69,12 @@ class Config:
             f"notfoundpage={self.notfoundpage!r})"
         )
 
-def evalRequest(path):
+def evalRequest(path, config):
     output = None
     if path in codePaths:
         output = eval(f"{codePathFuncs[codePaths.index(path)]}()")
         status = 200
+        type = 'text/html'
     else:
         path2 = f"{os.getcwd()}{path}"
         if os.path.isfile(path2):
@@ -93,7 +82,7 @@ def evalRequest(path):
             if str(mimetypes.guess_file_type(path2)[0]) == 'text/html':
                 with open(path2, 'r') as f:
                     output = f.read()
-                    output = f"{output}{Config.append}".encode('UTF-8')
+                    output = f"{output}{config.append}".encode('UTF-8')
                 type = 'text/html'
             else:
                 with open(path2, 'rb') as f:
@@ -103,47 +92,51 @@ def evalRequest(path):
             with open(f"{path2}index.html") as f:
                 output = f.read()
                 status = 200
-                output = f"{output}{Config.append}".encode('UTF-8')
+                output = f"{output}{config.append}".encode('UTF-8')
                 type = 'text/html'
         elif os.path.isfile(f"{path2}/index.html"):
             with open(f"{path2}/index.html") as f:
                 output = f.read()
                 status = 200
-                output = f"{output}{Config.append}".encode('UTF-8')
+                output = f"{output}{config.append}".encode('UTF-8')
                 type = 'text/html'
         else:
-            cr404page = Config.notfoundpage.replace("PATH",path)
+            cr404page = config.notfoundpage.replace("PATH",path)
             output = cr404page.encode('UTF-8')
             status = 404
             type = 'text/html'
-    return output,status,type
+    
+    return output, status, type
 
-class SebbyServer(BaseHTTPRequestHandler): #just runs another function -_-
+class SebbyServer(http.server.BaseHTTPRequestHandler):
     def do_GET(self):
-        response = evalRequest(self.path)
+        response = evalRequest(self.path, config)
         self.send_response(response[1])
-        self.send_header("Content-type", response[2]); self.end_headers()
+        self.send_header("Content-type", response[2])
+        self.end_headers()
         self.wfile.write(response[0])
 
 if __name__ == '__main__':
-    Config.__init__(Config, "config.yml")
-    server_address = (Config.host, Config.port)
-    httpd = ThreadingHTTPServer(server_address, SebbyServer)
-    if Config.ssl_enabled:
+    config = Config("config.yml")
+    server_address = (config.host, config.port)
+    httpd = http.server.ThreadingHTTPServer(server_address, SebbyServer)
+    if config.ssl_enabled:
         sslctx = ssl.SSLContext(ssl.PROTOCOL_TLS_SERVER)
         sslctx.check_hostname = False
-        sslctx.load_cert_chain(certfile=Config.ssl_certfile, keyfile=Config.ssl_keyfile)
+        sslctx.load_cert_chain(config.ssl_certfile, config.ssl_keyfile)
         httpd.socket = sslctx.wrap_socket(httpd.socket, server_side=True)
         print("HTTPS is enabled")
     else:
         print("HTTPS is disabled")
     if server_address[0] == '': printserver = '127.0.0.1 or localhost'
     else: printserver = server_address[0]
-    print(f"SebbyWebServer\nServing on {printserver}:{server_address[1]}\nPress Ctrl+C to stop") #gotta tell chat how it works bro
+    print("SebbyWebServer")
+    print("Serving on", printserver, ":", server_address[1])
+    print("Press Ctrl+C to stop")
     try:
         httpd.serve_forever()
-    except KeyboardInterrupt: #stop server when Ctrl+C pressed
+    except KeyboardInterrupt: # Stop the server if Ctrl+C pressed
+        print("Stopping server...")
+        httpd.server_close() # Close the server
         pass
-    print("Stopping server...")
-    httpd.server_close() #close the server
     print("Stopped.")
